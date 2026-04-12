@@ -23,4 +23,6 @@ npm run build
 2. 在倉庫 **Settings → Pages**：**Build and deployment** 的 **Source** 選 **GitHub Actions**。
 3. 推送會觸發 `.github/workflows/deploy-pages.yml`，完成後網址約為：`https://<你的使用者名>.github.io/toDoLists/`
 
-首次部署後若 404，請確認 Pages 來源已改為 **GitHub Actions**，並查看 Actions 分頁是否成功。
+若 `deploy-pages` 出現 **Creating Pages deployment failed / HttpError: Not Found**，請到 **Settings → Pages**，將 **Source** 設為 **GitHub Actions** 後再重跑 workflow（或等新的 push）。未啟用此選項時，部署 API 會回 404。
+
+首次上線後若網站 404，同樣先確認上述設定，並查看 Actions 是否成功。
