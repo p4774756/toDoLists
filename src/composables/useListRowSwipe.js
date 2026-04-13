@@ -1,20 +1,28 @@
 import { reactive, ref } from 'vue'
 
-const COMMIT_PX = 56
-const MAX_DRAG_PX = 104
+/** 右側刪除區寬度（與樣式一致） */
+export const DELETE_PANEL_PX = 78
+const RIGHT_COMMIT_PX = 56
+/** 由關閉狀態左滑超過此值，鬆手後固定露出刪除鈕 */
+const OPEN_LEFT_COMMIT_PX = 44
+/** 已露出時再向右滑超過此距離，鬆手後收回 */
+const CLOSE_RIGHT_COMMIT_PX = 36
+const MAX_DRAG_FROM_CLOSED_PX = 104
 
 /**
- * 水平滑動手勢：右滑觸發 onRight、左滑觸發 onLeft；鬆手未達門檻則回彈。
- * 使用 document 監聽 touchmove（passive: false）以便在判定為橫滑時 preventDefault。
+ * 右滑：觸發 onRight（切換完成）。
+ * 左滑：鬆手達門檻後固定露出刪除區，需另外點刪除；再向右滑可收回。
  */
-export function useListRowSwipe({ onRight, onLeft, isRowSwipeDisabled = () => false }) {
+export function useListRowSwipe({ onRight, isRowSwipeDisabled = () => false }) {
   const translateX = reactive({})
+  const openDeleteId = ref(null)
   const draggingId = ref(null)
 
   let activeId = null
   let startX = 0
   let startY = 0
-  let base = 0
+  /** 本次手勢開始時的 translateX */
+  let touchBase = 0
   /** @type {'h' | 'v' | null} */
   let lock = null
 
@@ -44,10 +52,30 @@ export function useListRowSwipe({ onRight, onLeft, isRowSwipeDisabled = () => fa
 
     if (lock === 'h') {
       e.preventDefault()
-      const raw = base + dx
-      const clamped = Math.max(-MAX_DRAG_PX, Math.min(MAX_DRAG_PX, raw))
+      const raw = touchBase + dx
+      const opened = touchBase <= -DELETE_PANEL_PX / 2
+      let clamped
+      if (opened) {
+        clamped = Math.max(-DELETE_PANEL_PX, Math.min(0, raw))
+      } else {
+        clamped = Math.max(-MAX_DRAG_FROM_CLOSED_PX, Math.min(MAX_DRAG_FROM_CLOSED_PX, raw))
+      }
       translateX[activeId] = clamped
     }
+  }
+
+  function snapOpen(id) {
+    const cur = openDeleteId.value
+    if (cur && cur !== id) {
+      translateX[cur] = 0
+    }
+    translateX[id] = -DELETE_PANEL_PX
+    openDeleteId.value = id
+  }
+
+  function snapClosed(id) {
+    translateX[id] = 0
+    if (openDeleteId.value === id) openDeleteId.value = null
   }
 
   function onTouchEnd() {
@@ -56,15 +84,31 @@ export function useListRowSwipe({ onRight, onLeft, isRowSwipeDisabled = () => fa
       return
     }
     const id = activeId
-    const x = translateX[id] || 0
+    const x = translateX[id] ?? 0
 
     if (lock === 'h') {
-      if (x >= COMMIT_PX) onRight(id)
-      else if (x <= -COMMIT_PX) onLeft(id)
+      const startedOpen = touchBase <= -DELETE_PANEL_PX / 2
+
+      if (!startedOpen) {
+        if (x <= -OPEN_LEFT_COMMIT_PX) {
+          snapOpen(id)
+        } else if (x >= RIGHT_COMMIT_PX) {
+          onRight(id)
+          snapClosed(id)
+        } else {
+          snapClosed(id)
+        }
+      } else {
+        if (x > -DELETE_PANEL_PX + CLOSE_RIGHT_COMMIT_PX) {
+          snapClosed(id)
+        } else {
+          translateX[id] = -DELETE_PANEL_PX
+          openDeleteId.value = id
+        }
+      }
     }
 
     cleanup()
-    translateX[id] = 0
   }
 
   /**
@@ -76,17 +120,42 @@ export function useListRowSwipe({ onRight, onLeft, isRowSwipeDisabled = () => fa
     if (!e.touches[0]) return
     if (activeId != null) return
 
+    const curOpen = openDeleteId.value
+    if (curOpen && curOpen !== id) {
+      translateX[curOpen] = 0
+      openDeleteId.value = null
+    }
+
     const t = e.touches[0]
     activeId = id
     startX = t.clientX
     startY = t.clientY
-    base = translateX[id] || 0
+    touchBase = translateX[id] ?? 0
     lock = null
     draggingId.value = id
 
     document.addEventListener('touchmove', onTouchMove, { passive: false })
     document.addEventListener('touchend', onTouchEnd)
     document.addEventListener('touchcancel', onTouchEnd)
+  }
+
+  function closeDeleteReveal(id) {
+    if (translateX[id] != null) translateX[id] = 0
+    if (openDeleteId.value === id) openDeleteId.value = null
+  }
+
+  function closeAllDeleteReveals() {
+    const id = openDeleteId.value
+    if (id) {
+      translateX[id] = 0
+      openDeleteId.value = null
+    }
+  }
+
+  /** 刪除列後清掉位移狀態，避免 reactive 殘留 key */
+  function afterRowRemoved(id) {
+    delete translateX[id]
+    if (openDeleteId.value === id) openDeleteId.value = null
   }
 
   function rowFrontStyle(id) {
@@ -100,8 +169,12 @@ export function useListRowSwipe({ onRight, onLeft, isRowSwipeDisabled = () => fa
 
   return {
     translateX,
+    openDeleteId,
     draggingId,
     onTouchStart,
     rowFrontStyle,
+    closeDeleteReveal,
+    closeAllDeleteReveals,
+    afterRowRemoved,
   }
 }

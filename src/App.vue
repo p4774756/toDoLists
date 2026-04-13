@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { useTodos } from './composables/useTodos'
 import { useListRowSwipe } from './composables/useListRowSwipe'
 
@@ -21,9 +21,22 @@ const editDraft = ref('')
 
 const rowSwipe = useListRowSwipe({
   onRight: (id) => toggle(id),
-  onLeft: (id) => remove(id),
   isRowSwipeDisabled: (id) => editingId.value === id,
 })
+
+watch(filter, () => {
+  rowSwipe.closeAllDeleteReveals()
+})
+
+function removeTodoAndResetSwipe(id) {
+  remove(id)
+  rowSwipe.afterRowRemoved(id)
+}
+
+function toggleTodo(id) {
+  rowSwipe.closeDeleteReveal(id)
+  toggle(id)
+}
 
 const emptyState = computed(() => {
   if (todos.value.length === 0) {
@@ -59,6 +72,7 @@ const filters = [
 ]
 
 function startEdit(item) {
+  rowSwipe.closeAllDeleteReveals()
   editingId.value = item.id
   editDraft.value = item.title
   nextTick(() => {
@@ -114,7 +128,7 @@ function commitEdit() {
         </div>
         <p class="subtitle">
           資料儲存在此瀏覽器的 <strong>localStorage</strong>，重新整理也不會消失。
-          在待辦列上<strong>向右滑</strong>可切換完成、<strong>向左滑</strong>可刪除。
+          在待辦列上<strong>向右滑</strong>可切換完成；<strong>向左滑</strong>會露出刪除鈕，需再點一下才會刪除。
         </p>
       </header>
 
@@ -160,11 +174,18 @@ function commitEdit() {
               class="swipe-row"
               :class="{ 'swipe-row--drag': rowSwipe.draggingId === item.id }"
             >
-              <div class="swipe-back" aria-hidden="true">
-                <span class="swipe-hint swipe-hint--done">
+              <div class="swipe-back">
+                <span class="swipe-hint swipe-hint--done" aria-hidden="true">
                   {{ item.done ? '未完成' : '完成' }}
                 </span>
-                <span class="swipe-hint swipe-hint--del">刪除</span>
+                <button
+                  type="button"
+                  class="swipe-delete-reveal"
+                  :tabindex="rowSwipe.openDeleteId === item.id ? 0 : -1"
+                  @click="removeTodoAndResetSwipe(item.id)"
+                >
+                  刪除
+                </button>
               </div>
               <div
                 class="swipe-front"
@@ -179,7 +200,7 @@ function commitEdit() {
                       class="checkbox"
                       type="checkbox"
                       :checked="item.done"
-                      @change="toggle(item.id)"
+                      @change="toggleTodo(item.id)"
                     />
                   </label>
                   <input
@@ -230,7 +251,7 @@ function commitEdit() {
                   type="button"
                   class="btn-delete"
                   title="刪除此項目"
-                  @click="remove(item.id)"
+                  @click="removeTodoAndResetSwipe(item.id)"
                   @touchstart.stop
                 >
                   <span class="sr-only">刪除</span>
@@ -563,9 +584,40 @@ function commitEdit() {
   background: linear-gradient(90deg, rgba(34, 197, 94, 0.22), transparent 85%);
 }
 
-.swipe-hint--del {
-  color: #b91c1c;
-  background: linear-gradient(270deg, rgba(248, 113, 113, 0.28), transparent 85%);
+.swipe-delete-reveal {
+  flex-shrink: 0;
+  width: 78px;
+  margin: 0;
+  padding: 0 0.35rem;
+  border: none;
+  border-radius: 0;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #fff;
+  cursor: pointer;
+  pointer-events: auto;
+  background: linear-gradient(180deg, #f87171 0%, #dc2626 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition:
+    filter 0.15s ease,
+    transform 0.12s ease;
+}
+
+.swipe-delete-reveal:hover {
+  filter: brightness(1.05);
+}
+
+.swipe-delete-reveal:active {
+  transform: scale(0.98);
+}
+
+.swipe-delete-reveal:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 0 2px var(--danger-soft);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -574,9 +626,8 @@ function commitEdit() {
     background: linear-gradient(90deg, rgba(34, 197, 94, 0.18), transparent 88%);
   }
 
-  .swipe-hint--del {
-    color: #fca5a5;
-    background: linear-gradient(270deg, rgba(248, 113, 113, 0.2), transparent 88%);
+  .swipe-delete-reveal {
+    background: linear-gradient(180deg, #b91c1c 0%, #7f1d1d 100%);
   }
 }
 
