@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue'
 import { useTodos } from './composables/useTodos'
+import { useListRowSwipe } from './composables/useListRowSwipe'
 
 const {
   todos,
@@ -17,6 +18,12 @@ const {
 const draft = ref('')
 const editingId = ref(null)
 const editDraft = ref('')
+
+const rowSwipe = useListRowSwipe({
+  onRight: (id) => toggle(id),
+  onLeft: (id) => remove(id),
+  isRowSwipeDisabled: (id) => editingId.value === id,
+})
 
 const emptyState = computed(() => {
   if (todos.value.length === 0) {
@@ -107,6 +114,7 @@ function commitEdit() {
         </div>
         <p class="subtitle">
           資料儲存在此瀏覽器的 <strong>localStorage</strong>，重新整理也不會消失。
+          在待辦列上<strong>向右滑</strong>可切換完成、<strong>向左滑</strong>可刪除。
         </p>
       </header>
 
@@ -146,78 +154,97 @@ function commitEdit() {
 
         <transition name="fade">
           <ul v-if="filteredTodos.length" class="list">
-            <li v-for="item in filteredTodos" :key="item.id" class="row">
-              <div class="check-label">
-                <label class="cb-wrap" :for="'todo-cb-' + item.id">
-                  <span class="sr-only">標記「{{ item.title }}」為完成</span>
+            <li
+              v-for="item in filteredTodos"
+              :key="item.id"
+              class="swipe-row"
+              :class="{ 'swipe-row--drag': rowSwipe.draggingId === item.id }"
+            >
+              <div class="swipe-back" aria-hidden="true">
+                <span class="swipe-hint swipe-hint--done">
+                  {{ item.done ? '未完成' : '完成' }}
+                </span>
+                <span class="swipe-hint swipe-hint--del">刪除</span>
+              </div>
+              <div
+                class="swipe-front"
+                :style="rowSwipe.rowFrontStyle(item.id)"
+                @touchstart="rowSwipe.onTouchStart(item.id, $event)"
+              >
+                <div class="check-label">
+                  <label class="cb-wrap" :for="'todo-cb-' + item.id" @touchstart.stop>
+                    <span class="sr-only">標記「{{ item.title }}」為完成</span>
+                    <input
+                      :id="'todo-cb-' + item.id"
+                      class="checkbox"
+                      type="checkbox"
+                      :checked="item.done"
+                      @change="toggle(item.id)"
+                    />
+                  </label>
                   <input
-                    :id="'todo-cb-' + item.id"
-                    class="checkbox"
-                    type="checkbox"
-                    :checked="item.done"
-                    @change="toggle(item.id)"
+                    v-if="editingId === item.id"
+                    :id="'todo-edit-' + item.id"
+                    v-model="editDraft"
+                    class="input input-inline"
+                    type="text"
+                    autocomplete="off"
+                    maxlength="500"
+                    :aria-label="'編輯：' + item.title"
+                    @keydown.enter.prevent="commitEdit"
+                    @keydown.escape.prevent="cancelEdit"
+                    @blur="commitEdit"
                   />
-                </label>
-                <input
-                  v-if="editingId === item.id"
-                  :id="'todo-edit-' + item.id"
-                  v-model="editDraft"
-                  class="input input-inline"
-                  type="text"
-                  autocomplete="off"
-                  maxlength="500"
-                  :aria-label="'編輯：' + item.title"
-                  @keydown.enter.prevent="commitEdit"
-                  @keydown.escape.prevent="cancelEdit"
-                  @blur="commitEdit"
-                />
+                  <button
+                    v-else
+                    type="button"
+                    class="label-text label-text--btn"
+                    :class="{ done: item.done }"
+                    title="雙擊或按 Enter 編輯"
+                    @dblclick.prevent="startEdit(item)"
+                    @keydown.enter.prevent="startEdit(item)"
+                  >
+                    {{ item.title }}
+                  </button>
+                </div>
                 <button
-                  v-else
                   type="button"
-                  class="label-text label-text--btn"
-                  :class="{ done: item.done }"
-                  title="雙擊或按 Enter 編輯"
-                  @dblclick.prevent="startEdit(item)"
-                  @keydown.enter.prevent="startEdit(item)"
+                  class="btn-icon btn-edit"
+                  title="編輯此項目"
+                  :disabled="editingId === item.id"
+                  @click="startEdit(item)"
+                  @touchstart.stop
                 >
-                  {{ item.title }}
+                  <span class="sr-only">編輯</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"
+                      stroke="currentColor"
+                      stroke-width="1.75"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="btn-delete"
+                  title="刪除此項目"
+                  @click="remove(item.id)"
+                  @touchstart.stop
+                >
+                  <span class="sr-only">刪除</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M6 7h12M10 7V5h4v2m-7 0l1 14h8l1-14"
+                      stroke="currentColor"
+                      stroke-width="1.75"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
                 </button>
               </div>
-              <button
-                type="button"
-                class="btn-icon btn-edit"
-                title="編輯此項目"
-                :disabled="editingId === item.id"
-                @click="startEdit(item)"
-              >
-                <span class="sr-only">編輯</span>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path
-                    d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"
-                    stroke="currentColor"
-                    stroke-width="1.75"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="btn-delete"
-                title="刪除此項目"
-                @click="remove(item.id)"
-              >
-                <span class="sr-only">刪除</span>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path
-                    d="M6 7h12M10 7V5h4v2m-7 0l1 14h8l1-14"
-                    stroke="currentColor"
-                    stroke-width="1.75"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </button>
             </li>
           </ul>
         </transition>
@@ -500,21 +527,78 @@ function commitEdit() {
   overflow: hidden;
 }
 
-.row {
+.swipe-row {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+
+.swipe-row:last-child {
+  border-bottom: none;
+}
+
+.swipe-back {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.swipe-hint {
+  display: flex;
+  align-items: center;
+  padding: 0 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.swipe-hint--done {
+  color: #15803d;
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.22), transparent 85%);
+}
+
+.swipe-hint--del {
+  color: #b91c1c;
+  background: linear-gradient(270deg, rgba(248, 113, 113, 0.28), transparent 85%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .swipe-hint--done {
+    color: #86efac;
+    background: linear-gradient(90deg, rgba(34, 197, 94, 0.18), transparent 88%);
+  }
+
+  .swipe-hint--del {
+    color: #fca5a5;
+    background: linear-gradient(270deg, rgba(248, 113, 113, 0.2), transparent 88%);
+  }
+}
+
+.swipe-front {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 0.35rem;
   padding: 0.55rem 0.5rem 0.55rem 0.65rem;
-  border-bottom: 1px solid var(--border);
+  background: var(--surface-solid);
+  touch-action: pan-y;
+  will-change: transform;
   transition: background 0.15s ease;
 }
 
-.row:last-child {
-  border-bottom: none;
+.swipe-row:hover .swipe-front {
+  background: var(--row-hover);
 }
 
-.row:hover {
-  background: var(--row-hover);
+.swipe-row--drag .swipe-front {
+  transition: none;
 }
 
 .check-label {
@@ -639,7 +723,7 @@ function commitEdit() {
     background 0.15s ease;
 }
 
-.row:hover .btn-icon {
+.swipe-row:hover .btn-icon {
   opacity: 1;
 }
 
@@ -678,7 +762,7 @@ function commitEdit() {
     background 0.15s ease;
 }
 
-.row:hover .btn-delete {
+.swipe-row:hover .btn-delete {
   opacity: 1;
 }
 
