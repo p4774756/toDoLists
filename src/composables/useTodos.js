@@ -46,6 +46,13 @@ export function useTodos() {
     if (item) item.done = !item.done
   }
 
+  function updateTitle(id, title) {
+    const t = title.trim()
+    if (!t) return
+    const item = todos.value.find((x) => x.id === id)
+    if (item) item.title = t
+  }
+
   function clearCompleted() {
     todos.value = todos.value.filter((t) => !t.done)
   }
@@ -58,6 +65,7 @@ export function useTodos() {
     add,
     remove,
     toggle,
+    updateTitle,
     clearCompleted,
   }
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { useTodos } from './composables/useTodos'
 
 const {
@@ -10,10 +10,13 @@ const {
   add,
   remove,
   toggle,
+  updateTitle,
   clearCompleted,
 } = useTodos()
 
 const draft = ref('')
+const editingId = ref(null)
+const editDraft = ref('')
 
 const emptyState = computed(() => {
   if (todos.value.length === 0) {
@@ -47,6 +50,33 @@ const filters = [
   { key: 'active', label: '未完成' },
   { key: 'completed', label: '已完成' },
 ]
+
+function startEdit(item) {
+  editingId.value = item.id
+  editDraft.value = item.title
+  nextTick(() => {
+    const el = document.getElementById(`todo-edit-${item.id}`)
+    el?.focus()
+    el?.select?.()
+  })
+}
+
+function cancelEdit() {
+  editingId.value = null
+  editDraft.value = ''
+}
+
+function commitEdit() {
+  if (!editingId.value) return
+  const id = editingId.value
+  const trimmed = editDraft.value.trim()
+  if (!trimmed) {
+    cancelEdit()
+    return
+  }
+  updateTitle(id, trimmed)
+  cancelEdit()
+}
 </script>
 
 <template>
@@ -117,15 +147,60 @@ const filters = [
         <transition name="fade">
           <ul v-if="filteredTodos.length" class="list">
             <li v-for="item in filteredTodos" :key="item.id" class="row">
-              <label class="check-label">
+              <div class="check-label">
+                <label class="cb-wrap" :for="'todo-cb-' + item.id">
+                  <span class="sr-only">標記「{{ item.title }}」為完成</span>
+                  <input
+                    :id="'todo-cb-' + item.id"
+                    class="checkbox"
+                    type="checkbox"
+                    :checked="item.done"
+                    @change="toggle(item.id)"
+                  />
+                </label>
                 <input
-                  class="checkbox"
-                  type="checkbox"
-                  :checked="item.done"
-                  @change="toggle(item.id)"
+                  v-if="editingId === item.id"
+                  :id="'todo-edit-' + item.id"
+                  v-model="editDraft"
+                  class="input input-inline"
+                  type="text"
+                  autocomplete="off"
+                  maxlength="500"
+                  :aria-label="'編輯：' + item.title"
+                  @keydown.enter.prevent="commitEdit"
+                  @keydown.escape.prevent="cancelEdit"
+                  @blur="commitEdit"
                 />
-                <span class="label-text" :class="{ done: item.done }">{{ item.title }}</span>
-              </label>
+                <button
+                  v-else
+                  type="button"
+                  class="label-text label-text--btn"
+                  :class="{ done: item.done }"
+                  title="雙擊或按 Enter 編輯"
+                  @dblclick.prevent="startEdit(item)"
+                  @keydown.enter.prevent="startEdit(item)"
+                >
+                  {{ item.title }}
+                </button>
+              </div>
+              <button
+                type="button"
+                class="btn-icon btn-edit"
+                title="編輯此項目"
+                :disabled="editingId === item.id"
+                @click="startEdit(item)"
+              >
+                <span class="sr-only">編輯</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
               <button
                 type="button"
                 class="btn-delete"
@@ -448,8 +523,15 @@ const filters = [
   gap: 0.65rem;
   flex: 1;
   min-width: 0;
-  cursor: pointer;
   padding: 0.15rem 0;
+}
+
+.cb-wrap {
+  display: flex;
+  align-items: flex-start;
+  flex-shrink: 0;
+  padding-top: 0.2rem;
+  cursor: pointer;
 }
 
 .checkbox {
@@ -506,6 +588,75 @@ const filters = [
   text-decoration: line-through;
   color: var(--text-muted);
   opacity: 0.75;
+}
+
+.label-text--btn {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  text-align: left;
+  cursor: text;
+  border-radius: var(--radius-sm);
+}
+
+.label-text--btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.input-inline {
+  flex: 1;
+  min-width: 0;
+  padding: 0.2rem 0.45rem;
+  margin: -0.05rem 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0.55;
+  flex-shrink: 0;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.row:hover .btn-icon {
+  opacity: 1;
+}
+
+.btn-icon:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.btn-edit:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.btn-edit:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  color: var(--accent);
 }
 
 .btn-delete {
