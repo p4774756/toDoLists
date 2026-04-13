@@ -71,6 +71,8 @@ const filters = [
   { key: 'completed', label: '已完成' },
 ]
 
+const appVersion = __APP_VERSION__
+
 /** 每列附帶滑動底層模式，避免模板重複呼叫且正確依賴 translateX */
 const listRows = computed(() =>
   filteredTodos.value.map((item) => {
@@ -285,7 +287,7 @@ function commitEdit() {
         </footer>
       </main>
 
-      <p class="fineprint">離線可用 · 不會同步到其他裝置</p>
+      <p class="fineprint">離線可用 · 不會同步到其他裝置 · v{{ appVersion }}</p>
     </div>
   </div>
 </template>
