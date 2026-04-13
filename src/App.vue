@@ -122,7 +122,6 @@ function commitEdit() {
             </svg>
           </span>
           <div class="brand-text">
-            <p class="eyebrow">今日</p>
             <h1 class="title">待辦清單</h1>
           </div>
         </div>
@@ -174,7 +173,10 @@ function commitEdit() {
               class="swipe-row"
               :class="{ 'swipe-row--drag': rowSwipe.draggingId === item.id }"
             >
-              <div class="swipe-back">
+              <div
+                class="swipe-back"
+                :class="{ 'swipe-back--hidden': !rowSwipe.showSwipeUnderlay(item.id) }"
+              >
                 <span class="swipe-hint swipe-hint--done" aria-hidden="true">
                   {{ item.done ? '未完成' : '完成' }}
                 </span>
@@ -385,16 +387,6 @@ function commitEdit() {
   min-width: 0;
 }
 
-.eyebrow {
-  margin: 0 0 0.1rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent);
-  opacity: 0.9;
-}
-
 .title {
   margin: 0;
   font-size: clamp(1.65rem, 4.5vw, 2rem);
@@ -568,6 +560,15 @@ function commitEdit() {
   z-index: 0;
 }
 
+.swipe-back--hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none !important;
+  transition:
+    opacity 0.16s ease,
+    visibility 0.16s ease;
+}
+
 .swipe-hint {
   display: flex;
   align-items: center;
@@ -634,6 +635,9 @@ function commitEdit() {
 .swipe-front {
   position: relative;
   z-index: 1;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 100%;
   display: flex;
   align-items: center;
   gap: 0.35rem;

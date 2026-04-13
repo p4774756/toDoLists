@@ -1,4 +1,4 @@
-import { reactive, ref } from 'vue'
+import { reactive, ref, nextTick } from 'vue'
 
 /** 右側刪除區寬度（與樣式一致） */
 export const DELETE_PANEL_PX = 78
@@ -95,6 +95,10 @@ export function useListRowSwipe({ onRight, isRowSwipeDisabled = () => false }) {
         } else if (x >= RIGHT_COMMIT_PX) {
           onRight(id)
           snapClosed(id)
+          nextTick(() => {
+            translateX[id] = 0
+            if (openDeleteId.value === id) openDeleteId.value = null
+          })
         } else {
           snapClosed(id)
         }
@@ -159,12 +163,22 @@ export function useListRowSwipe({ onRight, isRowSwipeDisabled = () => false }) {
   }
 
   function rowFrontStyle(id) {
-    const x = translateX[id] || 0
+    const raw = translateX[id]
+    const x = typeof raw === 'number' && !Number.isNaN(raw) ? raw : 0
     const dragging = draggingId.value === id
     return {
       transform: `translateX(${x}px)`,
       transition: dragging ? 'none' : 'transform 0.22s cubic-bezier(0.22, 1, 0.36, 1)',
     }
+  }
+
+  /** 拖曳中、已固定露出刪除、或位移超過門檻時才顯示底層（避免歸零後仍透出紅綠） */
+  function showSwipeUnderlay(id) {
+    if (openDeleteId.value === id) return true
+    if (draggingId.value === id) return true
+    const raw = translateX[id]
+    const x = typeof raw === 'number' && !Number.isNaN(raw) ? raw : 0
+    return Math.abs(x) > 4
   }
 
   return {
@@ -173,6 +187,7 @@ export function useListRowSwipe({ onRight, isRowSwipeDisabled = () => false }) {
     draggingId,
     onTouchStart,
     rowFrontStyle,
+    showSwipeUnderlay,
     closeDeleteReveal,
     closeAllDeleteReveals,
     afterRowRemoved,
