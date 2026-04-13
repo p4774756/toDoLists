@@ -5,4 +5,7 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   plugins: [vue()],
   base: '/toDoLists/',
+  server: {
+    port: 5180,
+  },
 })

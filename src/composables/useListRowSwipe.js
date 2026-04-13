@@ -8,6 +8,9 @@ const OPEN_LEFT_COMMIT_PX = 44
 /** 已露出時再向右滑超過此距離，鬆手後收回 */
 const CLOSE_RIGHT_COMMIT_PX = 36
 const MAX_DRAG_FROM_CLOSED_PX = 104
+/** 橫移超過此值才顯示對應側提示（避免手指一碰就紅綠全出） */
+const PEEK_DONE_PX = 10
+const PEEK_DELETE_PX = -10
 
 /**
  * 右滑：觸發 onRight（切換完成）。
@@ -172,13 +175,17 @@ export function useListRowSwipe({ onRight, isRowSwipeDisabled = () => false }) {
     }
   }
 
-  /** 拖曳中、已固定露出刪除、或位移超過門檻時才顯示底層（避免歸零後仍透出紅綠） */
-  function showSwipeUnderlay(id) {
-    if (openDeleteId.value === id) return true
-    if (draggingId.value === id) return true
+  /**
+   * 底層顯示模式：僅在「往右拖」顯示完成提示、「往左拖」顯示刪除、已固定露出時只顯示刪除。
+   * 不再用「手指按下就整層顯示」，避免左右紅綠同時出現。
+   */
+  function swipeUnderlayMode(id) {
+    if (openDeleteId.value === id) return 'delete-open'
     const raw = translateX[id]
     const x = typeof raw === 'number' && !Number.isNaN(raw) ? raw : 0
-    return Math.abs(x) > 4
+    if (x >= PEEK_DONE_PX) return 'done'
+    if (x <= PEEK_DELETE_PX) return 'delete'
+    return 'none'
   }
 
   return {
@@ -187,7 +194,7 @@ export function useListRowSwipe({ onRight, isRowSwipeDisabled = () => false }) {
     draggingId,
     onTouchStart,
     rowFrontStyle,
-    showSwipeUnderlay,
+    swipeUnderlayMode,
     closeDeleteReveal,
     closeAllDeleteReveals,
     afterRowRemoved,

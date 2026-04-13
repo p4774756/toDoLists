@@ -71,6 +71,18 @@ const filters = [
   { key: 'completed', label: '已完成' },
 ]
 
+/** 每列附帶滑動底層模式，避免模板重複呼叫且正確依賴 translateX */
+const listRows = computed(() =>
+  filteredTodos.value.map((item) => {
+    void rowSwipe.translateX[item.id]
+    void rowSwipe.openDeleteId.value
+    return {
+      ...item,
+      swipeMode: rowSwipe.swipeUnderlayMode(item.id),
+    }
+  }),
+)
+
 function startEdit(item) {
   rowSwipe.closeAllDeleteReveals()
   editingId.value = item.id
@@ -111,7 +123,7 @@ function commitEdit() {
         <div class="brand">
           <span class="logo" aria-hidden="true">
             <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="32" height="32" rx="10" fill="currentColor" opacity="0.12" />
+              <rect width="32" height="32" rx="8" fill="currentColor" opacity="0.12" />
               <path
                 d="M10 16.5l4 4 8-9"
                 stroke="currentColor"
@@ -127,7 +139,7 @@ function commitEdit() {
         </div>
         <p class="subtitle">
           資料儲存在此瀏覽器的 <strong>localStorage</strong>，重新整理也不會消失。
-          在待辦列上<strong>向右滑</strong>可切換完成；<strong>向左滑</strong>會露出刪除鈕，需再點一下才會刪除。
+          在待辦列上<strong>向右滑</strong>可切換完成；<strong>向左滑</strong>露出刪除鈕後，再點一下才會刪除（提示會依滑動方向單側出現）。
         </p>
       </header>
 
@@ -168,19 +180,21 @@ function commitEdit() {
         <transition name="fade">
           <ul v-if="filteredTodos.length" class="list">
             <li
-              v-for="item in filteredTodos"
+              v-for="item in listRows"
               :key="item.id"
               class="swipe-row"
               :class="{ 'swipe-row--drag': rowSwipe.draggingId === item.id }"
             >
-              <div
-                class="swipe-back"
-                :class="{ 'swipe-back--hidden': !rowSwipe.showSwipeUnderlay(item.id) }"
-              >
-                <span class="swipe-hint swipe-hint--done" aria-hidden="true">
+              <div class="swipe-back" :class="'swipe-back--' + item.swipeMode">
+                <span
+                  v-show="item.swipeMode === 'done'"
+                  class="swipe-hint swipe-hint--done"
+                  aria-hidden="true"
+                >
                   {{ item.done ? '未完成' : '完成' }}
                 </span>
                 <button
+                  v-show="item.swipeMode === 'delete' || item.swipeMode === 'delete-open'"
                   type="button"
                   class="swipe-delete-reveal"
                   :tabindex="rowSwipe.openDeleteId === item.id ? 0 : -1"
@@ -357,7 +371,7 @@ function commitEdit() {
 .logo {
   display: flex;
   color: var(--accent);
-  filter: drop-shadow(0 6px 14px var(--accent-glow));
+  filter: drop-shadow(0 8px 20px var(--accent-glow)) drop-shadow(0 2px 6px rgba(79, 70, 229, 0.2));
 }
 
 .logo svg {
@@ -410,7 +424,19 @@ function commitEdit() {
   backdrop-filter: blur(var(--blur));
   -webkit-backdrop-filter: blur(var(--blur));
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-md), var(--shadow-sm);
+  box-shadow: var(--shadow-card);
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  @media (prefers-reduced-motion: no-preference) {
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-card-hover);
+    }
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -432,7 +458,7 @@ function commitEdit() {
 
 .input {
   width: 100%;
-  padding: 0.7rem 0.95rem;
+  padding: var(--control-pad-y) var(--control-pad-x);
   font: inherit;
   font-size: 0.95rem;
   border: 1px solid var(--border);
@@ -451,6 +477,9 @@ function commitEdit() {
 
 .input:hover {
   border-color: var(--border-strong);
+  box-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 3px 12px rgba(15, 23, 42, 0.07);
 }
 
 .input:focus {
@@ -503,12 +532,23 @@ function commitEdit() {
 .tab--active {
   color: var(--text-h);
   background: var(--surface-solid);
-  box-shadow: var(--shadow-sm);
+  box-shadow:
+    var(--shadow-sm),
+    0 4px 14px -4px rgba(15, 23, 42, 0.1);
 }
 
 @media (prefers-color-scheme: dark) {
   .tab--active {
     background: rgba(51, 65, 85, 0.95);
+    box-shadow:
+      var(--shadow-sm),
+      0 8px 24px -4px rgba(0, 0, 0, 0.5);
+  }
+
+  .input:hover {
+    box-shadow:
+      inset 0 1px 2px rgba(0, 0, 0, 0.22),
+      0 4px 20px rgba(0, 0, 0, 0.38);
   }
 }
 
@@ -520,6 +560,17 @@ function commitEdit() {
   border: 1px solid var(--border);
   background: var(--surface-solid);
   overflow: hidden;
+  box-shadow:
+    var(--shadow-sm),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+@media (prefers-color-scheme: dark) {
+  .list {
+    box-shadow:
+      var(--shadow-sm),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
 }
 
 .swipe-row {
@@ -542,13 +593,22 @@ function commitEdit() {
   z-index: 0;
 }
 
-.swipe-back--hidden {
+.swipe-back--none {
   opacity: 0;
   visibility: hidden;
   pointer-events: none !important;
   transition:
     opacity 0.16s ease,
     visibility 0.16s ease;
+}
+
+.swipe-back--done {
+  justify-content: flex-start;
+}
+
+.swipe-back--delete,
+.swipe-back--delete-open {
+  justify-content: flex-end;
 }
 
 .swipe-hint {
@@ -563,8 +623,9 @@ function commitEdit() {
 }
 
 .swipe-hint--done {
-  color: #15803d;
-  background: linear-gradient(90deg, rgba(34, 197, 94, 0.22), transparent 85%);
+  color: #166534;
+  background: linear-gradient(90deg, rgba(34, 197, 94, 0.18), rgba(34, 197, 94, 0.02));
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 .swipe-delete-reveal {
@@ -573,7 +634,7 @@ function commitEdit() {
   margin: 0;
   padding: 0 0.35rem;
   border: none;
-  border-radius: 0;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 700;
@@ -605,8 +666,8 @@ function commitEdit() {
 
 @media (prefers-color-scheme: dark) {
   .swipe-hint--done {
-    color: #86efac;
-    background: linear-gradient(90deg, rgba(34, 197, 94, 0.18), transparent 88%);
+    color: #bbf7d0;
+    background: linear-gradient(90deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.03));
   }
 
   .swipe-delete-reveal {
@@ -662,7 +723,7 @@ function commitEdit() {
   margin: 0.2rem 0 0;
   flex-shrink: 0;
   border: 2px solid var(--border-strong);
-  border-radius: 0.35rem;
+  border-radius: var(--radius-xs);
   background: var(--surface-solid);
   cursor: pointer;
   transition:
@@ -734,10 +795,11 @@ function commitEdit() {
 .input-inline {
   flex: 1;
   min-width: 0;
-  padding: 0.2rem 0.45rem;
+  padding: 0.25rem 0.5rem;
   margin: -0.05rem 0;
   font-size: 0.9375rem;
   line-height: 1.45;
+  border-radius: var(--radius-sm);
 }
 
 .btn-icon {
@@ -841,10 +903,14 @@ function commitEdit() {
 }
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 600;
-  padding: 0.5rem 0.85rem;
+  min-height: calc(2 * var(--control-pad-y) + 1.25em);
+  padding: var(--control-pad-y) 0.9rem;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   cursor: pointer;
@@ -863,19 +929,26 @@ function commitEdit() {
   flex-shrink: 0;
   color: #fff;
   background: linear-gradient(165deg, var(--accent) 0%, var(--accent-hover) 100%);
-  box-shadow: 0 4px 14px -3px var(--accent-glow);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.12),
+    0 6px 20px -4px var(--accent-glow),
+    0 14px 36px -8px rgba(79, 70, 229, 0.35);
 }
 
 .btn-primary:hover {
   filter: brightness(1.06);
-  box-shadow: 0 6px 20px -4px var(--accent-glow);
+  box-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.14),
+    0 10px 28px -4px var(--accent-glow),
+    0 22px 48px -10px rgba(79, 70, 229, 0.38);
 }
 
 .btn-primary:focus-visible {
   outline: none;
   box-shadow:
     0 0 0 3px var(--accent-soft),
-    0 6px 20px -4px var(--accent-glow);
+    0 10px 28px -4px var(--accent-glow),
+    0 22px 48px -10px rgba(79, 70, 229, 0.35);
 }
 
 .btn-ghost {
@@ -885,8 +958,14 @@ function commitEdit() {
 }
 
 .btn-ghost:hover {
-  background: var(--accent-soft);
-  border-color: transparent;
+  background: var(--surface-solid);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-ghost:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .fineprint {
