@@ -249,24 +249,6 @@ function commitEdit() {
                     />
                   </svg>
                 </button>
-                <button
-                  type="button"
-                  class="btn-delete"
-                  title="刪除此項目"
-                  @click="removeTodoAndResetSwipe(item.id)"
-                  @touchstart.stop
-                >
-                  <span class="sr-only">刪除</span>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path
-                      d="M6 7h12M10 7V5h4v2m-7 0l1 14h8l1-14"
-                      stroke="currentColor"
-                      stroke-width="1.75"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </button>
               </div>
             </li>
           </ul>
@@ -796,40 +778,6 @@ function commitEdit() {
   outline: none;
   box-shadow: 0 0 0 2px var(--accent-soft);
   color: var(--accent);
-}
-
-.btn-delete {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  opacity: 0.55;
-  transition:
-    opacity 0.15s ease,
-    color 0.15s ease,
-    background 0.15s ease;
-}
-
-.swipe-row:hover .btn-delete {
-  opacity: 1;
-}
-
-.btn-delete:hover {
-  color: var(--danger);
-  background: var(--danger-soft);
-}
-
-.btn-delete:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--danger-soft);
-  color: var(--danger);
 }
 
 .empty {
