@@ -53,6 +53,17 @@ export function useTodos() {
     if (item) item.title = t
   }
 
+  function move(id, delta) {
+    const index = todos.value.findIndex((t) => t.id === id)
+    if (index < 0) return
+    const target = index + delta
+    if (target < 0 || target >= todos.value.length) return
+    const list = [...todos.value]
+    const [item] = list.splice(index, 1)
+    list.splice(target, 0, item)
+    todos.value = list
+  }
+
   function clearCompleted() {
     todos.value = todos.value.filter((t) => !t.done)
   }
@@ -66,6 +77,7 @@ export function useTodos() {
     remove,
     toggle,
     updateTitle,
+    move,
     clearCompleted,
   }
 }

@@ -12,6 +12,7 @@ const {
   remove,
   toggle,
   updateTitle,
+  move,
   clearCompleted,
 } = useTodos()
 
@@ -19,13 +20,250 @@ const draft = ref('')
 const editingId = ref(null)
 const editDraft = ref('')
 
+const reorderDraggingId = ref(null)
+const reorderDragAccum = ref(0)
+
 const rowSwipe = useListRowSwipe({
   onRight: (id) => toggle(id),
-  isRowSwipeDisabled: (id) => editingId.value === id,
+  isRowSwipeDisabled: (id) =>
+    editingId.value === id || reorderDraggingId.value != null,
 })
+
+const LONG_PRESS_MS = 440
+const REORDER_PRE_CANCEL_PX = 14
+const REORDER_STEP_PX = 42
+
+let reorderLongPressTimer = null
+/** @type {string | null} */
+let reorderPressPendingId = null
+let reorderPressStartX = 0
+let reorderPressStartY = 0
+let reorderLastKnownY = 0
+let reorderTouchLastY = 0
+/** @type {((e: TouchEvent) => void) | null} */
+let reorderProbeListener = null
+/** @type {((e: TouchEvent) => void) | null} */
+let reorderDragMoveListener = null
+/** @type {((e: TouchEvent) => void) | null} */
+let reorderDragEndListener = null
+
+let mouseReorderTimer = null
+/** @type {string | null} */
+let mouseReorderPendingId = null
+let mousePressX = 0
+let mousePressY = 0
+/** @type {((e: MouseEvent) => void) | null} */
+let mouseMoveProbe = null
+/** @type {((e: MouseEvent) => void) | null} */
+let mouseDragMove = null
+/** @type {((e: MouseEvent) => void) | null} */
+let mouseDragUp = null
+
+function canStartReorder(id) {
+  return filter.value === 'all' && editingId.value !== id
+}
+
+function clearReorderLongPressPending() {
+  if (reorderLongPressTimer != null) {
+    clearTimeout(reorderLongPressTimer)
+    reorderLongPressTimer = null
+  }
+  if (reorderProbeListener) {
+    document.removeEventListener('touchmove', reorderProbeListener, { capture: true })
+    reorderProbeListener = null
+  }
+  reorderPressPendingId = null
+}
+
+function clearMouseReorderPending() {
+  if (mouseReorderTimer != null) {
+    clearTimeout(mouseReorderTimer)
+    mouseReorderTimer = null
+  }
+  if (mouseMoveProbe) {
+    document.removeEventListener('mousemove', mouseMoveProbe)
+    mouseMoveProbe = null
+  }
+  mouseReorderPendingId = null
+}
+
+function detachReorderTouchDrag() {
+  if (reorderDragMoveListener) {
+    document.removeEventListener('touchmove', reorderDragMoveListener)
+    reorderDragMoveListener = null
+  }
+  if (reorderDragEndListener) {
+    document.removeEventListener('touchend', reorderDragEndListener)
+    document.removeEventListener('touchcancel', reorderDragEndListener)
+    reorderDragEndListener = null
+  }
+}
+
+function detachMouseReorderDrag() {
+  if (mouseDragMove) {
+    document.removeEventListener('mousemove', mouseDragMove)
+    mouseDragMove = null
+  }
+  if (mouseDragUp) {
+    document.removeEventListener('mouseup', mouseDragUp)
+    mouseDragUp = null
+  }
+}
+
+function endReorderDrag() {
+  reorderDraggingId.value = null
+  reorderDragAccum.value = 0
+  detachReorderTouchDrag()
+  detachMouseReorderDrag()
+}
+
+function applyReorderDelta(id, dy) {
+  let acc = reorderDragAccum.value + dy
+  while (acc >= REORDER_STEP_PX) {
+    if (!canMove(id, 1)) break
+    moveTodo(id, 1)
+    acc -= REORDER_STEP_PX
+  }
+  while (acc <= -REORDER_STEP_PX) {
+    if (!canMove(id, -1)) break
+    moveTodo(id, -1)
+    acc += REORDER_STEP_PX
+  }
+  reorderDragAccum.value = acc
+}
+
+function beginTouchReorder(id) {
+  clearReorderLongPressPending()
+  rowSwipe.cancelActiveSwipe()
+  rowSwipe.closeDeleteReveal(id)
+  reorderDraggingId.value = id
+  reorderDragAccum.value = 0
+  reorderTouchLastY = reorderLastKnownY
+
+  reorderDragMoveListener = (e) => {
+    if (reorderDraggingId.value !== id || !e.touches[0]) return
+    e.preventDefault()
+    const t = e.touches[0]
+    const dy = t.clientY - reorderTouchLastY
+    reorderTouchLastY = t.clientY
+    applyReorderDelta(id, dy)
+  }
+
+  reorderDragEndListener = () => {
+    if (reorderDraggingId.value === id) endReorderDrag()
+  }
+
+  document.addEventListener('touchmove', reorderDragMoveListener, { passive: false })
+  document.addEventListener('touchend', reorderDragEndListener)
+  document.addEventListener('touchcancel', reorderDragEndListener)
+
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    try {
+      navigator.vibrate(12)
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function onTodoRowTouchStart(id, e) {
+  rowSwipe.onTouchStart(id, e)
+  clearReorderLongPressPending()
+  if (!canStartReorder(id) || !e.touches[0]) return
+
+  const t = e.touches[0]
+  reorderPressPendingId = id
+  reorderPressStartX = t.clientX
+  reorderPressStartY = t.clientY
+  reorderLastKnownY = t.clientY
+
+  reorderProbeListener = (ev) => {
+    if (reorderPressPendingId !== id) return
+    const touch = ev.touches[0]
+    if (!touch) return
+    reorderLastKnownY = touch.clientY
+    const dx = touch.clientX - reorderPressStartX
+    const dy = touch.clientY - reorderPressStartY
+    if (Math.hypot(dx, dy) > REORDER_PRE_CANCEL_PX) clearReorderLongPressPending()
+  }
+  document.addEventListener('touchmove', reorderProbeListener, { capture: true, passive: true })
+
+  reorderLongPressTimer = window.setTimeout(() => {
+    if (reorderPressPendingId !== id) return
+    beginTouchReorder(id)
+  }, LONG_PRESS_MS)
+}
+
+function beginMouseReorder(id) {
+  clearMouseReorderPending()
+  rowSwipe.cancelActiveSwipe()
+  rowSwipe.closeDeleteReveal(id)
+  reorderDraggingId.value = id
+  reorderDragAccum.value = 0
+
+  let lastY = mousePressY
+  mouseDragMove = (e) => {
+    if (reorderDraggingId.value !== id) return
+    const dy = e.clientY - lastY
+    lastY = e.clientY
+    applyReorderDelta(id, dy)
+  }
+  mouseDragUp = () => {
+    if (reorderDraggingId.value === id) endReorderDrag()
+  }
+  document.addEventListener('mousemove', mouseDragMove)
+  document.addEventListener('mouseup', mouseDragUp)
+}
+
+function onSwipeFrontPointerDown(id, e) {
+  if (e.pointerType !== 'mouse' || e.button !== 0) return
+  if (!canStartReorder(id)) return
+  const el = e.target
+  if (
+    el instanceof Element &&
+    (el.closest('.btn-icon') ||
+      el.closest('.cb-wrap') ||
+      el.closest('.checkbox') ||
+      el.closest('.input-inline'))
+  ) {
+    return
+  }
+  clearMouseReorderPending()
+  mouseReorderPendingId = id
+  mousePressX = e.clientX
+  mousePressY = e.clientY
+
+  mouseMoveProbe = (ev) => {
+    if (mouseReorderPendingId !== id) return
+    const dx = ev.clientX - mousePressX
+    const dy = ev.clientY - mousePressY
+    if (Math.hypot(dx, dy) > REORDER_PRE_CANCEL_PX) clearMouseReorderPending()
+  }
+  document.addEventListener('mousemove', mouseMoveProbe)
+
+  mouseReorderTimer = window.setTimeout(() => {
+    if (mouseReorderPendingId !== id) return
+    clearMouseReorderPending()
+    beginMouseReorder(id)
+  }, LONG_PRESS_MS)
+}
+
+function reorderRowLiftStyle(rowId) {
+  if (reorderDraggingId.value !== rowId) return {}
+  const a = reorderDragAccum.value
+  const nudge = Math.max(-20, Math.min(20, a * 0.42))
+  return {
+    transform: `translateY(calc(-7px + ${nudge}px))`,
+    zIndex: 24,
+    transition: 'none',
+  }
+}
 
 watch(filter, () => {
   rowSwipe.closeAllDeleteReveals()
+  endReorderDrag()
+  clearReorderLongPressPending()
+  clearMouseReorderPending()
 })
 
 function removeTodoAndResetSwipe(id) {
@@ -36,6 +274,20 @@ function removeTodoAndResetSwipe(id) {
 function toggleTodo(id) {
   rowSwipe.closeDeleteReveal(id)
   toggle(id)
+}
+
+function canMove(id, delta) {
+  if (filter.value !== 'all') return false
+  const index = todos.value.findIndex((t) => t.id === id)
+  if (index < 0) return false
+  const target = index + delta
+  return target >= 0 && target < todos.value.length
+}
+
+function moveTodo(id, delta) {
+  if (!canMove(id, delta)) return
+  rowSwipe.closeDeleteReveal(id)
+  move(id, delta)
 }
 
 const emptyState = computed(() => {
@@ -78,6 +330,7 @@ const listRows = computed(() =>
   filteredTodos.value.map((item) => {
     void rowSwipe.translateX[item.id]
     void rowSwipe.openDeleteId.value
+    void reorderDraggingId.value
     return {
       ...item,
       swipeMode: rowSwipe.swipeUnderlayMode(item.id),
@@ -142,6 +395,7 @@ function commitEdit() {
         <p class="subtitle">
           資料儲存在此瀏覽器的 <strong>localStorage</strong>，重新整理也不會消失。
           在待辦列上<strong>向右滑</strong>可切換完成；<strong>向左滑</strong>露出刪除鈕後，再點一下才會刪除（提示會依滑動方向單側出現）。
+          在<strong>「全部」</strong>檢視下可<strong>長按</strong>列約半秒，列會略為浮起，再<strong>上下拖曳</strong>調整順序；滑鼠也可長按後拖曳。
         </p>
       </header>
 
@@ -185,7 +439,11 @@ function commitEdit() {
               v-for="item in listRows"
               :key="item.id"
               class="swipe-row"
-              :class="{ 'swipe-row--drag': rowSwipe.draggingId === item.id }"
+              :class="{
+                'swipe-row--drag': rowSwipe.draggingId === item.id,
+                'swipe-row--reorder': reorderDraggingId === item.id,
+              }"
+              :style="reorderRowLiftStyle(item.id)"
             >
               <div class="swipe-back" :class="'swipe-back--' + item.swipeMode">
                 <span
@@ -207,8 +465,10 @@ function commitEdit() {
               </div>
               <div
                 class="swipe-front"
+                :class="{ 'swipe-front--reorder': reorderDraggingId === item.id }"
                 :style="rowSwipe.rowFrontStyle(item.id)"
-                @touchstart="rowSwipe.onTouchStart(item.id, $event)"
+                @touchstart="onTodoRowTouchStart(item.id, $event)"
+                @pointerdown="onSwipeFrontPointerDown(item.id, $event)"
               >
                 <div class="check-label">
                   <label class="cb-wrap" :for="'todo-cb-' + item.id" @touchstart.stop>
@@ -585,6 +845,20 @@ function commitEdit() {
   border-bottom: none;
 }
 
+.swipe-row--reorder {
+  box-shadow:
+    0 14px 32px -10px rgba(15, 23, 42, 0.22),
+    0 6px 14px -6px rgba(79, 70, 229, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  .swipe-row--reorder {
+    box-shadow:
+      0 18px 40px -12px rgba(0, 0, 0, 0.55),
+      0 8px 18px -8px rgba(99, 102, 241, 0.18);
+  }
+}
+
 .swipe-back {
   position: absolute;
   inset: 0;
@@ -699,6 +973,10 @@ function commitEdit() {
 
 .swipe-row--drag .swipe-front {
   transition: none;
+}
+
+.swipe-front--reorder {
+  touch-action: none;
 }
 
 .check-label {

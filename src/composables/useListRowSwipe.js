@@ -81,6 +81,14 @@ export function useListRowSwipe({ onRight, isRowSwipeDisabled = () => false }) {
     if (openDeleteId.value === id) openDeleteId.value = null
   }
 
+  /** Abort in-progress swipe (e.g. long-press reorder) and reset row offset / delete panel. */
+  function cancelActiveSwipe() {
+    if (activeId == null) return
+    const id = activeId
+    cleanup()
+    snapClosed(id)
+  }
+
   function onTouchEnd() {
     if (activeId == null) {
       cleanup()
@@ -193,6 +201,7 @@ export function useListRowSwipe({ onRight, isRowSwipeDisabled = () => false }) {
     openDeleteId,
     draggingId,
     onTouchStart,
+    cancelActiveSwipe,
     rowFrontStyle,
     swipeUnderlayMode,
     closeDeleteReveal,
