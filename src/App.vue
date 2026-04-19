@@ -336,10 +336,6 @@ function removeTodoAndResetSwipe(id) {
   rowSwipe.afterRowRemoved(id)
 }
 
-function onTodoCheckboxChange(id) {
-  rowSwipe.closeDeleteReveal(id)
-}
-
 function canMove(id, delta) {
   if (filter.value !== 'all') return false
   const index = todos.value.findIndex((t) => t.id === id)
@@ -460,7 +456,7 @@ function commitEdit() {
           資料儲存在此瀏覽器的 <strong>localStorage</strong>，重新整理也不會消失。
           在待辦列上<strong>向右滑</strong>可切換完成；<strong>向左滑</strong>露出刪除鈕後，再點一下才會刪除（提示會依滑動方向單側出現）。
           在<strong>「全部」</strong>檢視下可<strong>長按</strong>列約半秒，列會略為浮起，再<strong>上下拖曳</strong>調整順序；滑鼠也可長按後拖曳。
-          點<strong>「多選」</strong>可勾選多筆後<strong>批次刪除</strong>（多選時無法滑動列，請先按「取消」結束）。
+          點「新增」右側的<strong>「多選」</strong>可勾選多筆後<strong>批次刪除</strong>（多選時無法滑動列，請先按「取消」結束）。平常請用<strong>右滑</strong>切換完成。
         </p>
       </header>
 
@@ -479,6 +475,14 @@ function commitEdit() {
             />
           </div>
           <button type="submit" class="btn btn-primary">新增</button>
+          <button
+            v-if="todos.length > 0 && !selectionMode"
+            type="button"
+            class="btn btn-ghost btn-form-action"
+            @click="enterSelectionMode"
+          >
+            多選
+          </button>
         </form>
 
         <div class="toolbar" role="tablist" aria-label="篩選">
@@ -498,32 +502,26 @@ function commitEdit() {
           </div>
         </div>
 
-        <div v-if="filteredTodos.length" class="toolbar toolbar--secondary">
-          <template v-if="!selectionMode">
-            <button type="button" class="btn btn-ghost btn-toolbar" @click="enterSelectionMode">
-              多選
-            </button>
-          </template>
-          <template v-else>
-            <button type="button" class="btn btn-ghost btn-toolbar" @click="exitSelectionMode">
-              取消
-            </button>
-            <button
-              type="button"
-              class="btn btn-ghost btn-toolbar"
-              @click="setSelectAllFiltered(!allFilteredSelected)"
-            >
-              {{ allFilteredSelected ? '取消全選' : '全選' }}
-            </button>
-            <button
-              type="button"
-              class="btn btn-ghost btn-batch-delete btn-toolbar"
-              :disabled="selectedCount === 0"
-              @click="batchDeleteSelected"
-            >
-              批次刪除（{{ selectedCount }}）
-            </button>
-          </template>
+        <div v-if="selectionMode && todos.length > 0" class="toolbar toolbar--secondary">
+          <button type="button" class="btn btn-ghost btn-toolbar" @click="exitSelectionMode">
+            取消
+          </button>
+          <button
+            v-if="filteredTodos.length"
+            type="button"
+            class="btn btn-ghost btn-toolbar"
+            @click="setSelectAllFiltered(!allFilteredSelected)"
+          >
+            {{ allFilteredSelected ? '取消全選' : '全選' }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-ghost btn-batch-delete btn-toolbar"
+            :disabled="selectedCount === 0"
+            @click="batchDeleteSelected"
+          >
+            批次刪除（{{ selectedCount }}）
+          </button>
         </div>
 
         <transition name="fade">
@@ -565,22 +563,7 @@ function commitEdit() {
               >
                 <div class="check-label">
                   <label
-                    v-if="!selectionMode"
-                    class="cb-wrap"
-                    :for="'todo-cb-' + item.id"
-                    @touchstart.stop
-                  >
-                    <span class="sr-only">標記「{{ item.title }}」為完成</span>
-                    <input
-                      :id="'todo-cb-' + item.id"
-                      v-model="item.done"
-                      class="checkbox"
-                      type="checkbox"
-                      @change="onTodoCheckboxChange(item.id)"
-                    />
-                  </label>
-                  <label
-                    v-else
+                    v-if="selectionMode"
                     class="cb-wrap cb-select-wrap"
                     :for="'todo-sel-' + item.id"
                     @touchstart.stop
@@ -823,8 +806,15 @@ function commitEdit() {
 
 .form {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.55rem;
   margin-bottom: 1rem;
+}
+
+.btn-form-action {
+  flex-shrink: 0;
+  font-size: 0.8125rem;
+  padding: var(--control-pad-y) 0.75rem;
 }
 
 .input-wrap {
