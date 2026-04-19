@@ -233,6 +233,7 @@ function onSwipeFrontPointerDown(id, e) {
     el instanceof Element &&
     (el.closest('.btn-icon') ||
       el.closest('.cb-wrap') ||
+      el.closest('.cb-spacer-wrap') ||
       el.closest('.checkbox') ||
       el.closest('.input-inline'))
   ) {
@@ -455,8 +456,8 @@ function commitEdit() {
         <p class="subtitle">
           資料儲存在此瀏覽器的 <strong>localStorage</strong>，重新整理也不會消失。
           在待辦列上<strong>向右滑</strong>可切換完成；<strong>向左滑</strong>露出刪除鈕後，再點一下才會刪除（提示會依滑動方向單側出現）。
-          在<strong>「全部」</strong>檢視下可<strong>長按</strong>列約半秒，列會略為浮起，再<strong>上下拖曳</strong>調整順序；滑鼠也可長按後拖曳。
-          點「新增」右側的<strong>「多選」</strong>可勾選多筆後<strong>批次刪除</strong>；再點同一顆<strong>「取消多選」</strong>結束（多選時無法滑動列）。平常請用<strong>右滑</strong>切換完成。
+          在<strong>「全部」</strong>檢視下可<strong>長按</strong>列約半秒，列會略為浮起，再<strong>上下拖曳</strong>調整順序；滑鼠也可長按後拖曳；未完成在上、已完成會自動排到下面。
+          輸入框右側為<strong>「多選／取消多選」</strong>，再右側為<strong>「新增」</strong>；多選可勾選多筆後<strong>批次刪除</strong>（多選時無法滑動列）。平常請用<strong>右滑</strong>切換完成。
         </p>
       </header>
 
@@ -474,7 +475,6 @@ function commitEdit() {
               maxlength="500"
             />
           </div>
-          <button type="submit" class="btn btn-primary">新增</button>
           <button
             v-if="todos.length > 0"
             type="button"
@@ -483,6 +483,7 @@ function commitEdit() {
           >
             {{ selectionMode ? '取消多選' : '多選' }}
           </button>
+          <button type="submit" class="btn btn-primary">新增</button>
         </form>
 
         <div class="toolbar" role="tablist" aria-label="篩選">
@@ -559,8 +560,15 @@ function commitEdit() {
                 @pointerdown="onSwipeFrontPointerDown(item.id, $event)"
               >
                 <div class="check-label">
+                  <div
+                    v-if="!selectionMode"
+                    class="cb-wrap cb-spacer-wrap"
+                    aria-hidden="true"
+                  >
+                    <span class="cb-spacer" />
+                  </div>
                   <label
-                    v-if="selectionMode"
+                    v-else
                     class="cb-wrap cb-select-wrap"
                     :for="'todo-sel-' + item.id"
                     @touchstart.stop
@@ -1132,6 +1140,22 @@ function commitEdit() {
   flex-shrink: 0;
   padding-top: 0.2rem;
   cursor: pointer;
+}
+
+.cb-spacer-wrap {
+  cursor: default;
+}
+
+.cb-spacer {
+  display: block;
+  box-sizing: border-box;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0.2rem 0 0;
+  flex-shrink: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-xs);
+  pointer-events: none;
 }
 
 .checkbox {

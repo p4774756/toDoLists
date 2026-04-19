@@ -6,6 +6,13 @@ export function useTodos() {
   const todos = ref([])
   const filter = ref('all')
 
+  /** 未完成在前、已完成在後（相對順序不變） */
+  function sinkDoneToBottom() {
+    const inc = todos.value.filter((t) => !t.done)
+    const comp = todos.value.filter((t) => t.done)
+    todos.value = [...inc, ...comp]
+  }
+
   onMounted(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
@@ -13,6 +20,11 @@ export function useTodos() {
     } catch {
       /* ignore */
     }
+    sinkDoneToBottom()
+  })
+
+  watch(filter, (v) => {
+    if (v === 'all') sinkDoneToBottom()
   })
 
   watch(
@@ -35,10 +47,12 @@ export function useTodos() {
     const t = title.trim()
     if (!t) return
     todos.value.push({ id: crypto.randomUUID(), title: t, done: false })
+    sinkDoneToBottom()
   }
 
   function remove(id) {
     todos.value = todos.value.filter((t) => t.id !== id)
+    sinkDoneToBottom()
   }
 
   /** @param {string[]} ids */
@@ -46,11 +60,13 @@ export function useTodos() {
     if (!ids.length) return
     const drop = new Set(ids)
     todos.value = todos.value.filter((t) => !drop.has(t.id))
+    sinkDoneToBottom()
   }
 
   function toggle(id) {
     const item = todos.value.find((t) => t.id === id)
     if (item) item.done = !item.done
+    sinkDoneToBottom()
   }
 
   function updateTitle(id, title) {
@@ -69,6 +85,7 @@ export function useTodos() {
     const [item] = list.splice(index, 1)
     list.splice(target, 0, item)
     todos.value = list
+    sinkDoneToBottom()
   }
 
   function clearCompleted() {
