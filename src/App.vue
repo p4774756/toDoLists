@@ -453,12 +453,17 @@ function commitEdit() {
             <h1 class="title">待辦清單</h1>
           </div>
         </div>
-        <p class="subtitle">
-          資料儲存在此瀏覽器的 <strong>localStorage</strong>，重新整理也不會消失。
-          在待辦列上<strong>向右滑</strong>可切換完成；<strong>向左滑</strong>露出刪除鈕後，再點一下才會刪除（提示會依滑動方向單側出現）。
-          在<strong>「全部」</strong>檢視下可<strong>長按</strong>列約半秒，列會略為浮起，再<strong>上下拖曳</strong>調整順序；滑鼠也可長按後拖曳；未完成在上、已完成會自動排到下面。
-          輸入框右側為<strong>「多選／取消多選」</strong>，再右側為<strong>「新增」</strong>；多選可勾選多筆後<strong>批次刪除</strong>（多選時無法滑動列）。平常請用<strong>右滑</strong>切換完成。
-        </p>
+        <details class="help-details">
+          <summary class="help-summary">使用說明</summary>
+          <div class="help-body">
+            <p>
+              資料儲存在此瀏覽器的 <strong>localStorage</strong>，重新整理也不會消失。
+              在待辦列上<strong>向右滑</strong>可切換完成；<strong>向左滑</strong>露出刪除鈕後，再點一下才會刪除（提示會依滑動方向單側出現）。
+              在<strong>「全部」</strong>檢視下可<strong>長按</strong>列約半秒，列會略為浮起，再<strong>上下拖曳</strong>調整順序；滑鼠也可長按後拖曳；未完成在上、已完成會自動排到下面。
+              輸入框右側為<strong>「多選／取消多選」</strong>，再右側為<strong>「新增」</strong>；多選可勾選多筆後<strong>批次刪除</strong>（多選時無法滑動列）。平常請用<strong>右滑</strong>切換完成。
+            </p>
+          </div>
+        </details>
       </header>
 
       <main class="card">
@@ -768,15 +773,46 @@ function commitEdit() {
   }
 }
 
-.subtitle {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--text-muted);
-  line-height: 1.55;
+.help-details {
+  margin: 0.15rem 0 0;
   max-width: 34em;
 }
 
-.subtitle strong {
+.help-summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.help-summary::-webkit-details-marker {
+  display: none;
+}
+
+.help-summary::marker {
+  content: '';
+}
+
+.help-summary:hover {
+  color: var(--accent);
+}
+
+.help-body {
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.help-body p {
+  margin: 0;
+}
+
+.help-body strong {
   color: var(--text);
   font-weight: 600;
 }
