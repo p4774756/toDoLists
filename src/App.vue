@@ -456,7 +456,7 @@ function commitEdit() {
           資料儲存在此瀏覽器的 <strong>localStorage</strong>，重新整理也不會消失。
           在待辦列上<strong>向右滑</strong>可切換完成；<strong>向左滑</strong>露出刪除鈕後，再點一下才會刪除（提示會依滑動方向單側出現）。
           在<strong>「全部」</strong>檢視下可<strong>長按</strong>列約半秒，列會略為浮起，再<strong>上下拖曳</strong>調整順序；滑鼠也可長按後拖曳。
-          點「新增」右側的<strong>「多選」</strong>可勾選多筆後<strong>批次刪除</strong>（多選時無法滑動列，請先按「取消」結束）。平常請用<strong>右滑</strong>切換完成。
+          點「新增」右側的<strong>「多選」</strong>可勾選多筆後<strong>批次刪除</strong>；再點同一顆<strong>「取消多選」</strong>結束（多選時無法滑動列）。平常請用<strong>右滑</strong>切換完成。
         </p>
       </header>
 
@@ -476,12 +476,12 @@ function commitEdit() {
           </div>
           <button type="submit" class="btn btn-primary">新增</button>
           <button
-            v-if="todos.length > 0 && !selectionMode"
+            v-if="todos.length > 0"
             type="button"
             class="btn btn-ghost btn-form-action"
-            @click="enterSelectionMode"
+            @click="selectionMode ? exitSelectionMode() : enterSelectionMode()"
           >
-            多選
+            {{ selectionMode ? '取消多選' : '多選' }}
           </button>
         </form>
 
@@ -503,9 +503,6 @@ function commitEdit() {
         </div>
 
         <div v-if="selectionMode && todos.length > 0" class="toolbar toolbar--secondary">
-          <button type="button" class="btn btn-ghost btn-toolbar" @click="exitSelectionMode">
-            取消
-          </button>
           <button
             v-if="filteredTodos.length"
             type="button"
