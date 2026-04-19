@@ -271,9 +271,8 @@ function removeTodoAndResetSwipe(id) {
   rowSwipe.afterRowRemoved(id)
 }
 
-function toggleTodo(id) {
+function onTodoCheckboxChange(id) {
   rowSwipe.closeDeleteReveal(id)
-  toggle(id)
 }
 
 function canMove(id, delta) {
@@ -475,10 +474,10 @@ function commitEdit() {
                     <span class="sr-only">標記「{{ item.title }}」為完成</span>
                     <input
                       :id="'todo-cb-' + item.id"
+                      v-model="item.done"
                       class="checkbox"
                       type="checkbox"
-                      :checked="item.done"
-                      @change="toggleTodo(item.id)"
+                      @change="onTodoCheckboxChange(item.id)"
                     />
                   </label>
                   <input
@@ -1004,11 +1003,12 @@ function commitEdit() {
   flex-shrink: 0;
   border: 2px solid var(--border-strong);
   border-radius: var(--radius-xs);
-  background: var(--surface-solid);
+  background-color: var(--surface-solid);
+  background-image: none;
   cursor: pointer;
   transition:
     border-color 0.15s ease,
-    background 0.15s ease,
+    background-color 0.15s ease,
     box-shadow 0.15s ease,
     transform 0.12s ease;
 }
@@ -1023,8 +1023,8 @@ function commitEdit() {
 }
 
 .checkbox:checked {
-  background: var(--accent);
   border-color: var(--accent);
+  background-color: var(--accent);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.5 8.5l3 3 6-7' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-size: 0.7rem;
   background-position: center;
