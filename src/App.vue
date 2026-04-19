@@ -508,25 +508,6 @@ function commitEdit() {
           </div>
         </div>
 
-        <div v-if="selectionMode && todos.length > 0" class="toolbar toolbar--secondary">
-          <button
-            v-if="filteredTodos.length"
-            type="button"
-            class="btn btn-ghost btn-toolbar"
-            @click="setSelectAllFiltered(!allFilteredSelected)"
-          >
-            {{ allFilteredSelected ? '取消全選' : '全選' }}
-          </button>
-          <button
-            type="button"
-            class="btn btn-ghost btn-batch-delete btn-toolbar"
-            :disabled="selectedCount === 0"
-            @click="batchDeleteSelected"
-          >
-            批次刪除（{{ selectedCount }}）
-          </button>
-        </div>
-
         <transition name="fade">
           <ul v-if="filteredTodos.length" class="list">
             <li
@@ -641,6 +622,25 @@ function commitEdit() {
           <span class="empty-icon" aria-hidden="true">✦</span>
           <p class="empty-title">{{ emptyState.title }}</p>
           <p v-if="emptyState.hint" class="empty-hint">{{ emptyState.hint }}</p>
+        </div>
+
+        <div v-if="selectionMode && todos.length > 0" class="toolbar toolbar--secondary">
+          <button
+            v-if="filteredTodos.length"
+            type="button"
+            class="btn btn-ghost btn-toolbar"
+            @click="setSelectAllFiltered(!allFilteredSelected)"
+          >
+            {{ allFilteredSelected ? '取消全選' : '全選' }}
+          </button>
+          <button
+            type="button"
+            class="btn btn-ghost btn-batch-delete btn-toolbar"
+            :disabled="selectedCount === 0"
+            @click="batchDeleteSelected"
+          >
+            批次刪除（{{ selectedCount }}）
+          </button>
         </div>
 
         <footer v-if="filteredTodos.length || activeCount > 0" class="footer">
@@ -906,8 +906,10 @@ function commitEdit() {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
-  margin-top: -0.2rem;
-  margin-bottom: 0.75rem;
+  margin-top: 0.75rem;
+  margin-bottom: 0.15rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
 }
 
 .btn-toolbar {
