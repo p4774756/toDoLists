@@ -10,6 +10,7 @@ const {
   activeCount,
   add,
   remove,
+  removeMany,
   toggle,
   updateTitle,
   move,
@@ -23,10 +24,15 @@ const editDraft = ref('')
 const reorderDraggingId = ref(null)
 const reorderDragAccum = ref(0)
 
+const selectionMode = ref(false)
+const selectedIds = ref([])
+
 const rowSwipe = useListRowSwipe({
   onRight: (id) => toggle(id),
   isRowSwipeDisabled: (id) =>
-    editingId.value === id || reorderDraggingId.value != null,
+    selectionMode.value ||
+    editingId.value === id ||
+    reorderDraggingId.value != null,
 })
 
 const LONG_PRESS_MS = 440
@@ -60,7 +66,11 @@ let mouseDragMove = null
 let mouseDragUp = null
 
 function canStartReorder(id) {
-  return filter.value === 'all' && editingId.value !== id
+  return (
+    filter.value === 'all' &&
+    !selectionMode.value &&
+    editingId.value !== id
+  )
 }
 
 function clearReorderLongPressPending() {
@@ -264,7 +274,62 @@ watch(filter, () => {
   endReorderDrag()
   clearReorderLongPressPending()
   clearMouseReorderPending()
+  exitSelectionMode()
 })
+
+const allFilteredSelected = computed(() => {
+  const visible = filteredTodos.value
+  if (!visible.length) return false
+  return visible.every((t) => selectedIds.value.includes(t.id))
+})
+
+const selectedCount = computed(() => selectedIds.value.length)
+
+function enterSelectionMode() {
+  cancelEdit()
+  rowSwipe.cancelActiveSwipe()
+  rowSwipe.closeAllDeleteReveals()
+  endReorderDrag()
+  clearReorderLongPressPending()
+  clearMouseReorderPending()
+  selectionMode.value = true
+  selectedIds.value = []
+}
+
+function exitSelectionMode() {
+  selectionMode.value = false
+  selectedIds.value = []
+}
+
+function toggleRowSelect(id, checked) {
+  if (checked) {
+    if (!selectedIds.value.includes(id)) {
+      selectedIds.value = [...selectedIds.value, id]
+    }
+  } else {
+    selectedIds.value = selectedIds.value.filter((x) => x !== id)
+  }
+}
+
+function setSelectAllFiltered(selectAll) {
+  const visibleIds = filteredTodos.value.map((t) => t.id)
+  if (selectAll) {
+    selectedIds.value = [...new Set([...selectedIds.value, ...visibleIds])]
+  } else {
+    const vis = new Set(visibleIds)
+    selectedIds.value = selectedIds.value.filter((id) => !vis.has(id))
+  }
+}
+
+function batchDeleteSelected() {
+  const ids = [...selectedIds.value]
+  if (!ids.length) return
+  for (const id of ids) {
+    rowSwipe.afterRowRemoved(id)
+  }
+  removeMany(ids)
+  exitSelectionMode()
+}
 
 function removeTodoAndResetSwipe(id) {
   remove(id)
@@ -305,7 +370,7 @@ const emptyState = computed(() => {
   if (filter.value === 'completed') {
     return {
       title: '尚無已完成項目',
-      hint: '勾選左側方塊標記完成後，會出現在這裡。',
+      hint: '在「全部」用左側方塊或右滑標記完成後，會出現在這裡。',
     }
   }
   return { title: '這裡還空空的', hint: '' }
@@ -395,6 +460,7 @@ function commitEdit() {
           資料儲存在此瀏覽器的 <strong>localStorage</strong>，重新整理也不會消失。
           在待辦列上<strong>向右滑</strong>可切換完成；<strong>向左滑</strong>露出刪除鈕後，再點一下才會刪除（提示會依滑動方向單側出現）。
           在<strong>「全部」</strong>檢視下可<strong>長按</strong>列約半秒，列會略為浮起，再<strong>上下拖曳</strong>調整順序；滑鼠也可長按後拖曳。
+          點<strong>「多選」</strong>可勾選多筆後<strong>批次刪除</strong>（多選時無法滑動列，請先按「取消」結束）。
         </p>
       </header>
 
@@ -430,6 +496,34 @@ function commitEdit() {
               {{ f.label }}
             </button>
           </div>
+        </div>
+
+        <div v-if="filteredTodos.length" class="toolbar toolbar--secondary">
+          <template v-if="!selectionMode">
+            <button type="button" class="btn btn-ghost btn-toolbar" @click="enterSelectionMode">
+              多選
+            </button>
+          </template>
+          <template v-else>
+            <button type="button" class="btn btn-ghost btn-toolbar" @click="exitSelectionMode">
+              取消
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-toolbar"
+              @click="setSelectAllFiltered(!allFilteredSelected)"
+            >
+              {{ allFilteredSelected ? '取消全選' : '全選' }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-ghost btn-batch-delete btn-toolbar"
+              :disabled="selectedCount === 0"
+              @click="batchDeleteSelected"
+            >
+              批次刪除（{{ selectedCount }}）
+            </button>
+          </template>
         </div>
 
         <transition name="fade">
@@ -470,7 +564,12 @@ function commitEdit() {
                 @pointerdown="onSwipeFrontPointerDown(item.id, $event)"
               >
                 <div class="check-label">
-                  <label class="cb-wrap" :for="'todo-cb-' + item.id" @touchstart.stop>
+                  <label
+                    v-if="!selectionMode"
+                    class="cb-wrap"
+                    :for="'todo-cb-' + item.id"
+                    @touchstart.stop
+                  >
                     <span class="sr-only">標記「{{ item.title }}」為完成</span>
                     <input
                       :id="'todo-cb-' + item.id"
@@ -478,6 +577,21 @@ function commitEdit() {
                       class="checkbox"
                       type="checkbox"
                       @change="onTodoCheckboxChange(item.id)"
+                    />
+                  </label>
+                  <label
+                    v-else
+                    class="cb-wrap cb-select-wrap"
+                    :for="'todo-sel-' + item.id"
+                    @touchstart.stop
+                  >
+                    <span class="sr-only">選取「{{ item.title }}」以批次刪除</span>
+                    <input
+                      :id="'todo-sel-' + item.id"
+                      type="checkbox"
+                      class="checkbox cb-select"
+                      :checked="selectedIds.includes(item.id)"
+                      @change="toggleRowSelect(item.id, $event.target.checked)"
                     />
                   </label>
                   <input
@@ -499,6 +613,7 @@ function commitEdit() {
                     class="label-text label-text--btn"
                     :class="{ done: item.done }"
                     title="雙擊或按 Enter 編輯"
+                    :disabled="selectionMode"
                     @dblclick.prevent="startEdit(item)"
                     @keydown.enter.prevent="startEdit(item)"
                   >
@@ -509,7 +624,7 @@ function commitEdit() {
                   type="button"
                   class="btn-icon btn-edit"
                   title="編輯此項目"
-                  :disabled="editingId === item.id"
+                  :disabled="editingId === item.id || selectionMode"
                   @click="startEdit(item)"
                   @touchstart.stop
                 >
@@ -753,6 +868,43 @@ function commitEdit() {
 
 .toolbar {
   margin-bottom: 0.85rem;
+}
+
+.toolbar--secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: -0.2rem;
+  margin-bottom: 0.75rem;
+}
+
+.btn-toolbar {
+  font-size: 0.8125rem;
+  padding: 0.42rem 0.7rem;
+}
+
+.btn-batch-delete {
+  margin-left: auto;
+  color: var(--danger);
+  border-color: rgba(225, 29, 72, 0.35);
+}
+
+.btn-batch-delete:not(:disabled):hover {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+.btn-batch-delete:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+@media (max-width: 380px) {
+  .btn-batch-delete {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 
 .tabs {

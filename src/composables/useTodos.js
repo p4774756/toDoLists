@@ -41,6 +41,13 @@ export function useTodos() {
     todos.value = todos.value.filter((t) => t.id !== id)
   }
 
+  /** @param {string[]} ids */
+  function removeMany(ids) {
+    if (!ids.length) return
+    const drop = new Set(ids)
+    todos.value = todos.value.filter((t) => !drop.has(t.id))
+  }
+
   function toggle(id) {
     const item = todos.value.find((t) => t.id === id)
     if (item) item.done = !item.done
@@ -75,6 +82,7 @@ export function useTodos() {
     activeCount,
     add,
     remove,
+    removeMany,
     toggle,
     updateTitle,
     move,
